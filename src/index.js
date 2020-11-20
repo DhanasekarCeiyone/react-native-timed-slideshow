@@ -2,11 +2,12 @@
  * @author Luís Mestre <https://github.com/LMestre14>
  */
 import React, { Component } from 'react';
-import { Text, View, FlatList, Animated, Easing, Image, TouchableWithoutFeedback, ActivityIndicator } from 'react-native';
+import { Text, View, FlatList, Animated, Easing, Image, TouchableWithoutFeedback, ActivityIndicator, TouchableOpacity } from 'react-native';
 import Styles, { width, height, EXTRA_WIDTH } from './styles';
 
 export { default as ImageWrapper } from './imageWrapper';
 import ImageWrapper from './imageWrapper';
+import { duration } from 'moment';
 
 export default class TimedSlideshow extends Component {
 
@@ -38,12 +39,17 @@ export default class TimedSlideshow extends Component {
             layoutWidth: width,
             loaded: false,
             timer: new Animated.Value(0),
+            visibleItem: 0
         };
 
         this.snapToNext = this.snapToNext.bind(this);
+        this.snapToPrev = this.snapToPrev.bind(this);
+        this.pauseAnimation = this.pauseAnimation.bind(this);
+        this.playAnimation = this.playAnimation.bind(this);
         this.onLayout = this.onLayout.bind(this);
         this.renderItem = this.renderItem.bind(this);
         this.onClose = this.onClose.bind(this);
+        // this.getVisibleIndex = this.getVisibleIndex.bind(this);
     }
 
     componentDidMount() {
@@ -56,15 +62,31 @@ export default class TimedSlideshow extends Component {
 
         if(!!items[index] && !isNaN(items[index].duration)) duration = items[index].duration;
 
+        if(items[index].type === 'photo') {
         return Animated.timing(this.state.timer, {
             toValue: 1,
             easing: Easing.ease,
             useNativeDriver: true,
             duration,
         }).start(({ finished }) => finished && this.snapToNext());
+        }
+
+        else {
+            return null
+        }
+
+    }
+    
+    pauseAnimation () {
+        this.state.timer.stopAnimation()
+    }
+
+    playAnimation () {
+        this.animation()
     }
 
     snapToNext() {
+        console.log('I RAN ONCE')
         const { index, timer } = this.state;
         let { items, loop } = this.props;
 
@@ -73,6 +95,7 @@ export default class TimedSlideshow extends Component {
         timer.stopAnimation(() => {
             if (!loop && newIndex === 0) {
                 // we reached the start again, stop the loop
+                this.onClose()
             }
             else {
                 this.slideShow.scrollToIndex({ animated: true, index: newIndex });
@@ -80,6 +103,25 @@ export default class TimedSlideshow extends Component {
                     this.animation();
                 });
             }
+        });
+    }
+
+    snapToPrev() {
+        const { index, timer } = this.state;
+        let { items, loop } = this.props;
+        console.log('SNAPPED TO PREV', 'INDEX: ',index, 'ITEMS: ',items)
+        let newIndex
+        if(index === 0) {
+            newIndex = 0
+        }
+        else {
+            newIndex = index - 1
+        }
+        timer.stopAnimation(() => {
+                this.slideShow.scrollToIndex({ animated: true, index: newIndex });
+                this.setState({ timer: new Animated.Value(0), index: newIndex }, () => {
+                    this.animation();
+                });
         });
     }
 
@@ -97,9 +139,9 @@ export default class TimedSlideshow extends Component {
 
     renderItem({ item, index }) {
         let { duration, extraSpacing, fullWidth, slideDirection, renderItem } = this.props;
-        const { index: focusedIndex, layoutWidth } = this.state;
+        const { index: focusedIndex, layoutWidth, visibleItem } = this.state;
 
-        if(typeof renderItem == 'function') return renderItem({ item, index, focusedIndex });
+        if(typeof renderItem == 'function') return renderItem({ item, index, focusedIndex, pauseAnimation: this.pauseAnimation, playAnimation: this.playAnimation, snapToNext: this.snapToNext, snapToPrev: this.snapToPrev });
 
         if(!isNaN(item.duration)) duration = item.duration;
 
@@ -110,7 +152,8 @@ export default class TimedSlideshow extends Component {
         if(item.fullWidth != void 0) fullWidth = !!item.fullWidth;
 
         return (
-            <ImageWrapper
+
+             <ImageWrapper
                 uri={item.uri}
                 index={index}
                 duration={duration}
@@ -124,9 +167,12 @@ export default class TimedSlideshow extends Component {
     }
 
     renderProgressBar() {
-        const { showProgressBar, progressBarDirection, progressBarColor } = this.props;
+        const { index } = this.state;
+        const { showProgressBar, progressBarDirection, progressBarColor, duration, items} = this.props;
         const { layoutWidth } = this.state;
-        if(!showProgressBar) return null;
+
+
+        if(!showProgressBar || items[index].type === 'video') return null;
 
         let animation = { transform: [{scaleX: this.state.timer}] };
 
@@ -161,6 +207,18 @@ export default class TimedSlideshow extends Component {
 
         return (
             <TouchableWithoutFeedback onPress={this.snapToNext}>
+                <Image source={require('./arrow.png')} style={Styles.arrowImg} />
+            </TouchableWithoutFeedback>
+        )
+    }
+
+    renderPrevIcon() {
+        const { renderPrevIcon } = this.props;
+
+        if(typeof renderPrevIcon == 'function') return renderPrevIcon({ snapToPrev: this.snapToPrev });
+
+        return (
+            <TouchableWithoutFeedback onPress={this.snapToPrev}>
                 <Image source={require('./arrow.png')} style={Styles.arrowImg} />
             </TouchableWithoutFeedback>
         )
@@ -232,9 +290,6 @@ export default class TimedSlideshow extends Component {
                         </Animated.Text>
                     </View>
                 </View>
-                <View style={{ height: '100%', justifyContent: 'center' }}>
-                    {this.renderIcon()}
-                </View>
             </View>
         );
     }
@@ -249,6 +304,17 @@ export default class TimedSlideshow extends Component {
         );
     }
 
+    // onViewableItemsChanged = ({ viewableItems, changed }) => {
+    //     console.log("Visible INDeX", viewableItems[0].index);
+    //     this.setState({
+    //         visibleItem: viewableItems[0].index
+    //      })
+    //   }
+
+    //   getVisibleIndex() {
+    //       return this.state.visibleItem
+    //   }
+
     renderContent() {
         const { items, index } = this.props;
         const { layoutWidth, loaded } = this.state;
@@ -262,6 +328,7 @@ export default class TimedSlideshow extends Component {
         return (
             <View style={{ flex: 1 }}>
                 <FlatList
+                    windowSize={1}
                     ref={ref => this.slideShow = ref}
                     style={{ flex: 1 }}
                     data={items}
@@ -269,7 +336,7 @@ export default class TimedSlideshow extends Component {
                     renderItem={this.renderItem}
                     initialScrollIndex={index}
                     horizontal
-                    pagingEnabled
+                    // pagingEnabled
                     scrollEnabled={false}
                     getItemLayout={(item, index) => ({ index, length: layoutWidth, offset: layoutWidth * index })}
                     showsHorizontalScrollIndicator={false}
@@ -277,6 +344,12 @@ export default class TimedSlideshow extends Component {
                 />
                 {this.renderCloseIcon()}
                 {this.renderFooter()}
+                <View style={{ flex: 1, height: '100%', position: 'absolute', alignSelf: 'flex-end', justifyContent: 'center'}}>
+                    {this.renderIcon()}
+                 </View>
+                 <View style={{ flex: 1, height: '100%', position: 'absolute', alignSelf: 'flex-start', justifyContent: 'center'}}>
+                    {this.renderPrevIcon()}
+                 </View>
             </View>
         );
     }
