@@ -1,0 +1,32 @@
+    closeImgWrapper: {
+        position: 'absolute',
+        right: 20,
+        ...Platform.select({
+            ios: {
+                top: 45,
+                shadowColor: '#000',
+				shadowOpacity: 0.5,
+				shadowRadius: 2,
+				shadowOffset: {
+					width: 0,
+					height: 2,
+				},
+            },
+            android: {
+                top: 35,
+                elevation: 4,
+            },
+        }),
+    },
+
+    closeImg: {
+        width: 15,
+        height: 15,
+        tintColor: 'white',
+        resizeMode: 'contain',
+    },
+    ProfileImg: {
+        width: 40,
+        height: 40,
+        borderRadius: 100
+    }
